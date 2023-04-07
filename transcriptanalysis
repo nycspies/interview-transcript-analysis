@@ -1,0 +1,51 @@
+import spacy
+from spacy.matcher import Matcher
+from spacy.tokens import Span
+from datetime import datetime
+
+# Load the small English model
+nlp = spacy.load("en_core_web_sm")
+
+# Define a custom entity matcher to extract dates
+matcher = Matcher(nlp.vocab)
+
+def extract_dates(doc):
+    for match_id, start, end in matcher(doc):
+        yield doc[start:end]
+
+pattern = [{"LOWER": {"IN": ["on", "in"]}}, {"ENT_TYPE": "DATE"}]
+matcher.add("Date", None, pattern)
+
+# Read in your interview transcript text file(s)
+with open("interview_transcript.txt", "r") as f:
+    text = f.read()
+
+# Process the text with the NLP pipeline
+doc = nlp(text)
+
+# Extract all the dates mentioned in the text using the custom matcher
+dates = [date.text for date in extract_dates(doc)]
+
+# Define a function to parse dates into datetime objects
+def parse_date(date_str):
+    try:
+        return datetime.strptime(date_str, "%B %d, %Y")
+    except ValueError:
+        return None
+
+# Extract all the sentences from the document
+sentences = [sent for sent in doc.sents]
+
+# Extract all the events mentioned in the sentences
+events = []
+for sent in sentences:
+    for ent in sent.ents:
+        if ent.label_ == "EVENT":
+            events.append((ent.text, sent))
+
+# Sort the events by the date they occurred
+sorted_events = sorted(events, key=lambda x: parse_date([date for date in dates if date in x[1].text][0]))
+
+# Print the sorted events in chronological order
+for event in sorted_events:
+    print(f"{event[0]}: {event[1].text.strip()}")
